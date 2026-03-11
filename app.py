@@ -3,7 +3,7 @@ from ultralytics import YOLO
 from PIL import Image
 
 # --- 1. ตั้งค่าหน้าจอ ---
-st.set_page_config(page_title="Urine Strip Analyzer", page_icon="🧬", layout="centered")
+st.set_page_config(page_title="Smart Urine Analyzer", page_icon="🧬", layout="centered")
 
 # --- 2. Premium CSS Style ---
 st.markdown("""
@@ -80,9 +80,21 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. ส่วนหัว (Header) สไตล์แอป ---
-st.markdown("<h2 style='text-align: center; color: #1E293B; font-weight: 800;'>🧬 Smart Urine Analyzer</h2>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #64748B; font-size: 16px; margin-bottom: 30px;'>AI-Powered Diabetes Screening Tool</p>", unsafe_allow_html=True)
+# --- 3. ส่วนหัว (Header) สไตล์แอป พร้อมโลโก้ ---
+col1, col2 = st.columns([1, 4])
+with col1:
+    # โหลดโลโก้ (ถ้าหาไฟล์ไม่เจอ จะใช้ Emoji รูป DNA แทน)
+    try:
+        logo_img = Image.open("logo_diagnostic.png") 
+        st.image(logo_img, use_container_width=True)
+    except:
+        st.markdown("<h1 style='text-align: center; color: #1E293B; font-size: 50px; margin-top: -10px;'>🧬</h1>", unsafe_allow_html=True)
+
+with col2:
+    st.markdown("<h2 style='text-align: left; color: #1E293B; font-weight: 800; margin-top: -10px;'>Smart Urine Analyzer</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: left; color: #64748B; font-size: 16px; margin-top: -10px;'>AI-Powered Diabetes Screening Tool</p>", unsafe_allow_html=True)
+
+st.markdown("---")
 
 # --- 4. โหลดโมเดล ---
 @st.cache_resource
