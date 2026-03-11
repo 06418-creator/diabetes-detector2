@@ -1,6 +1,6 @@
 import streamlit as st
 from ultralytics import YOLO
-from PIL import Image
+from PIL import Image, ImageOps
 import numpy as np
 import cv2
 
@@ -8,40 +8,46 @@ st.set_page_config(page_title="Diabetes AI Detector", layout="wide")
 
 @st.cache_resource
 def load_model():
-    return YOLO('best.pt') 
+    # โหลดโมเดลและตั้งค่าโหมดประเมินผล
+    model = YOLO('best.pt')
+    return model
 
 model = load_model()
 
-st.title("🩺 Diabetes AI Debugger")
-uploaded_file = st.file_uploader("ส่งรูปมาพิสูจน์กัน...", type=["jpg", "jpeg", "png"])
+st.title("🩺 Diabetes AI Analysis")
+
+uploaded_file = st.file_uploader("ส่งรูปภาพที่ใช้เทรนหรือรูปใหม่มาตรวจสอบ...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
+    # 1. อ่านภาพและจัดการเรื่องการหมุนภาพอัตโนมัติ (Exif orientation)
     image = Image.open(uploaded_file)
-    img_array = np.array(image)
+    image = ImageOps.exif_transpose(image) 
     
-    # ปรับค่า Confidence ตรงนี้ได้ (ลองลดเหลือ 0.25)
-    conf_threshold = st.sidebar.slider("ปรับความละเอียด AI (Confidence)", 0.0, 1.0, 0.25)
+    # 2. แปลงเป็น Numpy Array และทำให้สีเป็น RGB แน่นอน
+    img_array = np.array(image.convert('RGB'))
     
-    results = model.predict(source=img_array, conf=conf_threshold)
+    # 3. สั่งทำนายผล (ลองลด conf ลงชั่วคราวเพื่อดูว่ามันเจออะไรบ้างไหม)
+    # เพิ่ม imgsz=640 เพื่อให้ขนาดภาพเท่ากับตอนเทรนส่วนใหญ่
+    results = model.predict(source=img_array, conf=0.20, imgsz=640)
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("🖼️ รูปต้นฉบับ")
-        st.image(image, use_column_width=True)
+        st.subheader("🖼️ รูปภาพที่คุณส่งมา")
+        st.image(image, use_container_width=True)
         
     with col2:
-        st.subheader("🔍 ผลที่ AI มองเห็น")
-        # สั่งให้ YOLO วาดกรอบลงบนภาพเลย (Plotting)
-        res_plotted = results[0].plot()
-        # แปลงสี BGR เป็น RGB (เพราะ OpenCV กับ PIL สลับสีกัน)
-        res_rgb = cv2.cvtColor(res_plotted, cv2.COLOR_BGR2RGB)
-        st.image(res_rgb, caption='AI Detect Results', use_column_width=True)
+        st.subheader("🔍 ผลการสแกนจาก AI")
+        
+        # วาดผลลัพธ์
+        res_plotted = results[0].plot(conf=True, labels=True)
+        st.image(res_plotted, caption='AI Detection Result', use_container_width=True)
 
         if len(results[0].boxes) > 0:
             for box in results[0].boxes:
                 label = model.names[int(box.cls[0])]
                 score = box.conf[0]
-                st.success(f"พบ: {label} (ความมั่นใจ {score:.2%})")
+                st.success(f"✅ ตรวจพบ: {label} (ความมั่นใจ {score:.2%})")
         else:
-            st.error("AI ยังหาไม่เจอ... ลองปรับ Confidence ลดลงหรือถ่ายรูปใหม่ให้ชัดขึ้นครับ")
+            st.error("⚠️ AI ยังหาแถบตรวจไม่เจอ")
+            st.info("คำแนะนำ: ลองถ่ายรูปให้ใกล้ขึ้น หรือให้แถบตรวจอยู่กลางภาพ และมีแสงสว่างที่เพียงพอ")
