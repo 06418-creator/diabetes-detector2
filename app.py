@@ -6,7 +6,7 @@ import numpy as np
 # --- 1. การตั้งค่าหน้าจอ ---
 st.set_page_config(page_title="Diabetes Strip Analyzer", layout="centered")
 
-# --- 2. สไตล์ CSS เพื่อความสวยงาม ---
+# --- 2. สไตล์ CSS ---
 st.markdown("""
     <style>
     .main { background-color: #f5f7f9; }
@@ -21,20 +21,69 @@ st.markdown("""
 st.title("🧪 ระบบวิเคราะห์แถบสีตรวจน้ำตาล")
 st.write("อัปโหลดรูปภาพแผ่นตรวจเพื่อวิเคราะห์ระดับน้ำตาล (6 ระดับ)")
 
-# --- 3. โหลดโมเดล (ใช้ชื่อไฟล์ตามที่คุณแจ้ง) ---
+# --- 3. โหลดโมเดล ---
 @st.cache_resource
 def load_model():
     try:
-        # แก้ไขชื่อไฟล์ให้ตรงกับที่อัปโหลดบน GitHub
         return YOLO('best (4).pt') 
     except Exception as e:
-        st.error(f"❌ ไม่พบไฟล์โมเดล 'best (4).pt' กรุณาตรวจสอบชื่อไฟล์บน GitHub")
+        st.error(f"❌ ไม่พบไฟล์โมเดล 'best (4).pt' บน GitHub")
         return None
 
 model = load_model()
 
-# --- 4. ข้อมูลคลาสและคำแนะนำ ---
+# --- 4. ข้อมูลคลาส ---
 class_info = {
+    'Neg': {'name': 'ปกติ (Negative)', 'class': 'neg', 'desc': 'ไม่พบน้ำตาลในปัสสาวะ'},
+    'Trace': {'name': 'เล็กน้อย (Trace)', 'class': 'trace', 'desc': 'พบน้ำตาลในปริมาณน้อยมาก'},
+    'plus1': {'name': 'ระดับ 1 (+1)', 'class': 'plus', 'desc': 'พบน้ำตาลในระดับเริ่มต้น (100 mg/dL)'},
+    'plus2': {'name': 'ระดับ 2 (+2)', 'class': 'plus', 'desc': 'พบน้ำตาลในระดับปานกลาง (250 mg/dL)'},
+    'plus3': {'name': 'ระดับ 3 (+3)', 'class': 'plus', 'desc': 'พบน้ำตาลในระดับสูง (500 mg/dL)'},
+    'plus4': {'name': 'ระดับ 4 (+4)', 'class': 'plus', 'desc': 'พบน้ำตาลในระดับสูงมาก (>1000 mg/dL)'}
+}
+class_names = ['Neg', 'Trace', 'plus1', 'plus2', 'plus3', 'plus4']
+
+# --- 5. การอัปโหลดและวิเคราะห์ ---
+uploaded_file = st.file_uploader("เลือกรูปภาพ...", type=["jpg", "jpeg", "png"])
+
+if uploaded_file is not None:
+    image = Image.open(uploaded_file)
+    st.image(image, caption='รูปภาพที่อัปโหลด', use_container_width=True)
+    
+    if st.button('🚀 เริ่มการวิเคราะห์'):
+        if model is not None:
+            with st.spinner('กำลังวิเคราะห์...'):
+                results = model(image)
+                
+                if len(results[0].boxes) > 0:
+                    top_box = results[0].boxes[0]
+                    cls_id = int(top_box.cls[0])
+                    conf = float(top_box.conf[0])
+                    
+                    label = class_names[cls_id]
+                    info = class_info[label]
+                    
+                    # แสดงรูป
+                    st.image(results[0].plot(), caption='ผลการตรวจจับ', use_container_width=True)
+                    
+                    # แสดงผลลัพธ์ (แก้จุดที่มักเกิด Syntax Error ใน f-string)
+                    res_html = f"""
+                        <div class="result-box {info['class']}">
+                            ผลการวิเคราะห์: {info['name']}<br>
+                            <span style="font-size: 16px;">ความเชื่อมั่น: {conf:.2%}</span>
+                        </div>
+                        <div style="text-align: center; margin-top: 15px; color: #333;">
+                            <b>คำแนะนำ:</b> {info['desc']}
+                        </div>
+                    """
+                    st.markdown(res_html, unsafe_allow_html=True)
+                else:
+                    st.warning("⚠️ ไม่พบแถบตรวจในรูปภาพ")
+        else:
+            st.error("โมเดลไม่พร้อมใช้งาน")
+
+st.markdown("---")
+st.info("💡 หมายเหตุ: ผลวิเคราะห์เป็นเพียงการประมาณการเบื้องต้น")class_info = {
     'Neg': {'name': 'ปกติ (Negative)', 'class': 'neg', 'desc': 'ไม่พบน้ำตาลในปัสสาวะ'},
     'Trace': {'name': 'เล็กน้อย (Trace)', 'class': 'trace', 'desc': 'พบน้ำตาลในปริมาณน้อยมาก'},
     'plus1': {'name': 'ระดับ 1 (+1)', 'class': 'plus', 'desc': 'พบน้ำตาลในระดับเริ่มต้น (100 mg/dL)'},
