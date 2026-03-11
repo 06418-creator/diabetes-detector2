@@ -1,40 +1,77 @@
 import streamlit as st
 from ultralytics import YOLO
 from PIL import Image
-import numpy as np
 
-# --- 1. การตั้งค่าหน้าจอ ---
+# 1. ตั้งค่าหน้าจอ
 st.set_page_config(page_title="Diabetes Strip Analyzer", layout="centered")
 
-# --- 2. สไตล์ CSS ---
+# 2. CSS Style
 st.markdown("""
     <style>
-    .main { background-color: #f5f7f9; }
-    .stButton>button { width: 100%; border-radius: 10px; height: 3em; background-color: #4CAF50; color: white; font-weight: bold; }
-    .result-box { padding: 20px; border-radius: 15px; text-align: center; font-size: 26px; font-weight: bold; margin-top: 20px; }
+    .stButton>button { width: 100%; border-radius: 10px; background-color: #4CAF50; color: white; }
+    .result-box { padding: 20px; border-radius: 15px; text-align: center; font-size: 24px; font-weight: bold; }
     .neg { background-color: #e8f5e9; color: #2e7d32; border: 2px solid #2e7d32; }
     .trace { background-color: #fff3e0; color: #ef6c00; border: 2px solid #ef6c00; }
     .plus { background-color: #ffebee; color: #c62828; border: 2px solid #c62828; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🧪 ระบบวิเคราะห์แถบสีตรวจน้ำตาล")
-st.write("อัปโหลดรูปภาพแผ่นตรวจเพื่อวิเคราะห์ระดับน้ำตาล (6 ระดับ)")
+st.title("🧪 วิเคราะห์แถบสีปัสสาวะ")
 
-# --- 3. โหลดโมเดล ---
+# 3. โหลดโมเดล
 @st.cache_resource
 def load_model():
     try:
-        return YOLO('best (4).pt') 
-    except Exception as e:
-        st.error(f"❌ ไม่พบไฟล์โมเดล 'best (4).pt' บน GitHub")
+        return YOLO('best (4).pt')
+    except:
         return None
 
 model = load_model()
 
-# --- 4. ข้อมูลคลาส ---
+# 4. ข้อมูลคลาส
 class_info = {
-    'Neg': {'name': 'ปกติ (Negative)', 'class': 'neg', 'desc': 'ไม่พบน้ำตาลในปัสสาวะ'},
+    'Neg': {'n': 'ปกติ (Negative)', 'c': 'neg', 'd': 'ไม่พบน้ำตาลในปัสสาวะ'},
+    'Trace': {'n': 'เล็กน้อย (Trace)', 'c': 'trace', 'd': 'พบน้ำตาลในปริมาณน้อยมาก'},
+    'plus1': {'n': 'ระดับ 1 (+1)', 'c': 'plus', 'd': 'พบน้ำตาลระดับเริ่มต้น'},
+    'plus2': {'n': 'ระดับ 2 (+2)', 'c': 'plus', 'd': 'พบน้ำตาลระดับปานกลาง'},
+    'plus3': {'n': 'ระดับ 3 (+3)', 'c': 'plus', 'd': 'พบน้ำตาลระดับสูง'},
+    'plus4': {'n': 'ระดับ 4 (+4)', 'c': 'plus', 'd': 'พบน้ำตาลระดับสูงมาก'}
+}
+class_names = ['Neg', 'Trace', 'plus1', 'plus2', 'plus3', 'plus4']
+
+# 5. การอัปโหลดและวิเคราะห์
+up_file = st.file_uploader("เลือกรูปภาพ...", type=["jpg", "png", "jpeg"])
+
+if up_file:
+    img = Image.open(up_file)
+    st.image(img, caption='รูปที่อัปโหลด', use_container_width=True)
+    
+    if st.button('🚀 เริ่มวิเคราะห์'):
+        if model:
+            results = model(img)
+            if len(results[0].boxes) > 0:
+                box = results[0].boxes[0]
+                idx = int(box.cls[0])
+                conf = float(box.conf[0])
+                
+                info = class_info[class_names[idx]]
+                
+                st.image(results[0].plot(), use_container_width=True)
+                
+                html = f"""
+                <div class="result-box {info['c']}">
+                    {info['n']}<br>
+                    <span style="font-size:14px">มั่นใจ: {conf:.1%}</span>
+                </div>
+                <p style="text-align:center; margin-top:10px"><b>คำแนะนำ:</b> {info['d']}</p>
+                """
+                st.markdown(html, unsafe_allow_html=True)
+            else:
+                st.warning("ไม่พบแถบตรวจ")
+        else:
+            st.error("ไม่พบโมเดล best (4).pt")
+
+st.info("หมายเหตุ: ผลลัพธ์เป็นการประมาณการโดย AI")    'Neg': {'name': 'ปกติ (Negative)', 'class': 'neg', 'desc': 'ไม่พบน้ำตาลในปัสสาวะ'},
     'Trace': {'name': 'เล็กน้อย (Trace)', 'class': 'trace', 'desc': 'พบน้ำตาลในปริมาณน้อยมาก'},
     'plus1': {'name': 'ระดับ 1 (+1)', 'class': 'plus', 'desc': 'พบน้ำตาลในระดับเริ่มต้น (100 mg/dL)'},
     'plus2': {'name': 'ระดับ 2 (+2)', 'class': 'plus', 'desc': 'พบน้ำตาลในระดับปานกลาง (250 mg/dL)'},
