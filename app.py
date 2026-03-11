@@ -2,55 +2,123 @@ import streamlit as st
 from ultralytics import YOLO
 from PIL import Image
 
-# 1. ตั้งค่าหน้าจอ
-st.set_page_config(page_title="Diabetes Strip Analyzer", layout="centered")
+# --- 1. ตั้งค่าหน้าจอ ---
+st.set_page_config(page_title="Urine Strip Analyzer", page_icon="🧬", layout="centered")
 
-# 2. CSS Style
+# --- 2. Premium CSS Style ---
 st.markdown("""
     <style>
-    .stButton>button { width: 100%; border-radius: 10px; background-color: #4CAF50; color: white; padding: 10px; font-size: 18px; font-weight: bold;}
-    .result-box { padding: 20px; border-radius: 15px; text-align: center; font-size: 24px; font-weight: bold; margin-bottom: 20px;}
-    .neg { background-color: #e8f5e9; color: #2e7d32; border: 2px solid #2e7d32; }
-    .trace { background-color: #fff3e0; color: #ef6c00; border: 2px solid #ef6c00; }
-    .plus { background-color: #ffebee; color: #c62828; border: 2px solid #c62828; }
+    /* นำเข้าฟอนต์ Google Fonts เพื่อความอินเตอร์ */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Prompt:wght@300;500;700&display=swap');
+
+    /* ปรับฟอนต์ทั้งหน้าเว็บ */
+    html, body, [class*="css"]  {
+        font-family: 'Prompt', 'Inter', sans-serif;
+    }
+
+    /* ซ่อน Header/Footer ของ Streamlit ให้ดูเป็นแอปส่วนตัว */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
+    /* ตกแต่งปุ่มกด (Gradient Button) */
+    .stButton>button {
+        width: 100%;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #2563EB, #3B82F6);
+        color: white;
+        padding: 12px 20px;
+        font-size: 18px;
+        font-weight: 700;
+        border: none;
+        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+        color: white;
+        border: none;
+    }
+
+    /* กล่องแสดงผลลัพธ์สไตล์ Premium Card */
+    .premium-card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+        text-align: center;
+        margin-top: 20px;
+        margin-bottom: 20px;
+        border: 1px solid #f0f0f0;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 12px;
+    }
+
+    /* สีตามระดับอาการ (ดูหรูหราขึ้น ไม่จ้าเกินไป) */
+    .neg-badge { background: #ECFDF5; color: #059669; border: 1px solid #10B981;}
+    .trace-badge { background: #FFFBEB; color: #D97706; border: 1px solid #F59E0B;}
+    .plus-badge { background: #FEF2F2; color: #DC2626; border: 1px solid #EF4444;}
+    
+    /* กล่องคำแนะนำอัปโหลด */
+    .upload-instruction {
+        background-color: #F8FAFC; 
+        padding: 15px; 
+        border-radius: 10px; 
+        border-left: 4px solid #3B82F6; 
+        margin-bottom: 15px;
+        color: #1E293B; 
+        font-size: 14px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🧪 วิเคราะห์แถบสีปัสสาวะ")
-st.write("อัปโหลดรูปภาพแผ่นตรวจเพื่อวิเคราะห์ระดับน้ำตาล (6 ระดับ)")
+# --- 3. ส่วนหัว (Header) สไตล์แอป ---
+st.markdown("<h2 style='text-align: center; color: #1E293B; font-weight: 800;'>🧬 Smart Urine Analyzer</h2>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #64748B; font-size: 16px; margin-bottom: 30px;'>AI-Powered Diabetes Screening Tool</p>", unsafe_allow_html=True)
 
-# 3. โหลดโมเดล
+# --- 4. โหลดโมเดล ---
 @st.cache_resource
 def load_model():
     try:
-        return YOLO('best (4).pt')
+        return YOLO('best (4).pt') 
     except Exception as e:
-        st.error(f"ไม่สามารถโหลดโมเดลได้: {e}")
+        st.error(f"System Error: Unable to load AI model. ({e})")
         return None
 
 model = load_model()
 
-# 4. ข้อมูลคลาส
+# --- 5. ข้อมูลคลาส ---
 class_info = {
-    'Neg': {'name': 'ปกติ (Negative)', 'class': 'neg', 'desc': 'ไม่พบน้ำตาลในปัสสาวะ'},
-    'Trace': {'name': 'เล็กน้อย (Trace)', 'class': 'trace', 'desc': 'พบน้ำตาลในปริมาณน้อยมาก'},
-    'plus1': {'name': 'ระดับ 1 (+1)', 'class': 'plus', 'desc': 'พบน้ำตาลในระดับเริ่มต้น (100 mg/dL)'},
-    'plus2': {'name': 'ระดับ 2 (+2)', 'class': 'plus', 'desc': 'พบน้ำตาลในระดับปานกลาง (250 mg/dL)'},
-    'plus3': {'name': 'ระดับ 3 (+3)', 'class': 'plus', 'desc': 'พบน้ำตาลในระดับสูง (500 mg/dL)'},
-    'plus4': {'name': 'ระดับ 4 (+4)', 'class': 'plus', 'desc': 'พบน้ำตาลในระดับสูงมาก (>1000 mg/dL) ควรพบแพทย์ทันที'}
+    'Neg': {'name': 'NEGATIVE (ปกติ)', 'badge': 'neg-badge', 'desc': 'ไม่พบความผิดปกติของระดับน้ำตาลในปัสสาวะ'},
+    'Trace': {'name': 'TRACE (พบเล็กน้อย)', 'badge': 'trace-badge', 'desc': 'พบน้ำตาลปริมาณน้อยมาก ควรเฝ้าระวังและตรวจซ้ำ'},
+    'plus1': {'name': '+1 (ระดับเริ่มต้น)', 'badge': 'plus-badge', 'desc': 'พบน้ำตาล ~100 mg/dL ควรปรับพฤติกรรมการบริโภค'},
+    'plus2': {'name': '+2 (ระดับปานกลาง)', 'badge': 'plus-badge', 'desc': 'พบน้ำตาล ~250 mg/dL แนะนำให้ปรึกษาแพทย์'},
+    'plus3': {'name': '+3 (ระดับสูง)', 'badge': 'plus-badge', 'desc': 'พบน้ำตาล ~500 mg/dL มีความเสี่ยงสูง ควรพบแพทย์'},
+    'plus4': {'name': '+4 (ระดับสูงมาก)', 'badge': 'plus-badge', 'desc': 'พบน้ำตาล >1000 mg/dL อันตราย! โปรดพบแพทย์ทันที'}
 }
 class_names = ['Neg', 'Trace', 'plus1', 'plus2', 'plus3', 'plus4']
 
-# 5. การอัปโหลดและวิเคราะห์
-uploaded_file = st.file_uploader("เลือกรูปภาพแผ่นตรวจ...", type=["jpg", "jpeg", "png"])
+# --- 6. ส่วนอัปโหลดรูปภาพ ---
+st.markdown("<div class='upload-instruction'><b>Instruction:</b> กรุณาอัปโหลดรูปภาพแผ่นตรวจปัสสาวะ โดยให้เห็นแถบสีที่ 10 (Glucose) อย่างชัดเจนเพื่อผลลัพธ์ที่แม่นยำ</div>", unsafe_allow_html=True)
 
+uploaded_file = st.file_uploader("Choose an image file...", type=["jpg", "jpeg", "png"])
+
+# --- 7. ประมวลผลและวิเคราะห์ ---
 if uploaded_file is not None:
     image = Image.open(uploaded_file)
-    st.image(image, caption='รูปภาพที่อัปโหลด', use_container_width=True)
+    st.image(image, caption='Image ready for analysis', use_container_width=True)
     
-    if st.button('🚀 เริ่มการวิเคราะห์'):
+    if st.button('✨ ANALYZE NOW'):
         if model is not None:
-            with st.spinner('กำลังวิเคราะห์...'):
+            with st.spinner('AI is analyzing the pad...'):
                 results = model(image)
                 
                 if len(results[0].boxes) > 0:
@@ -61,22 +129,28 @@ if uploaded_file is not None:
                     label = class_names[cls_id]
                     info = class_info[label]
                     
-                    st.image(results[0].plot(), caption='ผลการตรวจจับ', use_container_width=True)
+                    st.image(results[0].plot(), use_container_width=True)
                     
+                    # UI ผลลัพธ์แบบ Premium Card
                     res_html = f"""
-                        <div class="result-box {info['class']}">
-                            ผลการวิเคราะห์: {info['name']}<br>
-                            <span style="font-size: 16px;">ความเชื่อมั่น: {conf:.2%}</span>
-                        </div>
-                        <div style="text-align: center; margin-top: 15px; color: #333;">
-                            <b>คำแนะนำ:</b> {info['desc']}
+                        <div class="premium-card">
+                            <h4 style="color: #64748B; margin-bottom: 15px; font-size: 16px;">ANALYSIS RESULT</h4>
+                            <div class="status-badge {info['badge']}">
+                                {info['name']}
+                            </div>
+                            <p style="color: #94A3B8; font-size: 14px; margin-top: 10px;">
+                                AI Confidence Level: <b>{conf:.1%}</b>
+                            </p>
+                            <hr style="border: none; border-top: 1px solid #F1F5F9; margin: 20px 0;">
+                            <p style="color: #334155; font-size: 16px; line-height: 1.6;">
+                                <b>Medical Advice:</b><br>{info['desc']}
+                            </p>
                         </div>
                     """
                     st.markdown(res_html, unsafe_allow_html=True)
                 else:
-                    st.warning("⚠️ ไม่พบแถบตรวจในรูปภาพ กรุณาลองถ่ายรูปใหม่ให้ชัดเจนและใกล้ขึ้น")
+                    st.warning("⚠️ No glucose pad detected. Please check the image and try again.")
         else:
-            st.error("โมเดลไม่พร้อมใช้งาน")
+            st.error("System Error: Model not found.")
 
-st.markdown("---")
-st.info("💡 หมายเหตุ: ผลการวิเคราะห์นี้เป็นการประมาณการโดย AI โปรดปรึกษาแพทย์เพื่อยืนยันผลทางการแพทย์")
+st.markdown("<div style='text-align: center; margin-top: 40px; color: #CBD5E1; font-size: 12px;'>Disclaimer: This tool provides AI-based estimations. Always consult a healthcare professional for accurate medical diagnosis.</div>", unsafe_allow_html=True)
