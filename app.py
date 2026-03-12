@@ -2,140 +2,116 @@ import streamlit as st
 from ultralytics import YOLO
 from PIL import Image
 
-# --- 1. ตั้งค่าหน้าจอ ---
-st.set_page_config(page_title="Smart Urine Analyzer", page_icon="🧬", layout="centered")
+# --- 1. หน้าจอแบบ Wide เพื่อให้มีพื้นที่ด้านข้างมากขึ้น ---
+st.set_page_config(page_title="Smart Urine Analyzer", page_icon="🧬", layout="wide")
 
-# --- 2. Premium CSS Style ---
+# --- 2. CSS ปรับแต่งให้ทุกอย่างชิดกัน (Compact Design) ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Prompt:wght@300;500;700&display=swap');
-    html, body, [class*="css"]  { font-family: 'Prompt', 'Inter', sans-serif; }
+    @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;500;700&display=swap');
+    html, body, [class*="css"] { font-family: 'Prompt', sans-serif; }
     #MainMenu, footer, header {visibility: hidden;}
+    
+    /* ลดระยะห่างด้านบนของหน้าเว็บ */
+    .block-container { padding-top: 2rem; padding-bottom: 0rem; }
 
+    /* ปุ่มกดแบบ Compact */
     .stButton>button {
         width: 100%;
-        border-radius: 12px;
+        border-radius: 10px;
         background: linear-gradient(135deg, #2563EB, #3B82F6);
         color: white;
-        padding: 15px 20px;
-        font-size: 18px;
+        padding: 10px;
         font-weight: 700;
         border: none;
-        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
-        transition: all 0.3s ease;
-    }
-    .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
-        color: white;
+        box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
     }
 
-    .premium-card {
+    /* ผลลัพธ์แบบ Card เล็กกะทัดรัด */
+    .result-card {
         background: #ffffff;
-        border-radius: 16px;
-        padding: 24px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+        border-radius: 12px;
+        padding: 15px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
         text-align: center;
-        margin-top: 20px;
-        border: 1px solid #f0f0f0;
-        color: #1E293B;
+        border: 1px solid #e2e8f0;
+        margin-top: 10px;
     }
     
-    .status-badge {
+    .badge {
         display: inline-block;
-        padding: 8px 16px;
-        border-radius: 20px;
-        font-size: 20px;
+        padding: 4px 12px;
+        border-radius: 15px;
+        font-size: 16px;
         font-weight: 700;
-        margin-bottom: 12px;
     }
-    .neg-badge { background: #ECFDF5; color: #059669; border: 1px solid #10B981;}
-    .trace-badge { background: #FFFBEB; color: #D97706; border: 1px solid #F59E0B;}
-    .plus-badge { background: #FEF2F2; color: #DC2626; border: 1px solid #EF4444;}
-    
-    .upload-instruction {
-        background-color: #F8FAFC; 
-        padding: 15px; 
-        border-radius: 10px; 
-        border-left: 4px solid #3B82F6; 
-        margin-bottom: 15px;
-        font-size: 14px;
-        color: #1E293B;
-    }
+    .neg { background: #ECFDF5; color: #059669; }
+    .trace { background: #FFFBEB; color: #D97706; }
+    .plus { background: #FEF2F2; color: #DC2626; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. Header ---
-col_logo, col_title = st.columns([1, 5])
-with col_logo:
-    st.markdown("<h1 style='margin:0;'>🧬</h1>", unsafe_allow_html=True)
-with col_title:
-    st.markdown("<h2 style='margin:0;'>Smart Urine Analyzer</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='color: #64748B; margin:0;'>Preliminary Diabetes Screening Tool</p>", unsafe_allow_html=True)
-
-st.markdown("---")
+# --- 3. ส่วนหัวแบบบรรทัดเดียว ---
+col_h1, col_h2 = st.columns([1, 8])
+with col_h1: st.markdown("## 🧬")
+with col_h2: st.markdown("### Smart Urine Analyzer <small style='font-size:14px; color:gray;'>| Diabetes Screening</small>", unsafe_allow_html=True)
 
 # --- 4. Load Model ---
 @st.cache_resource
 def load_model():
-    try:
-        return YOLO('best (5).pt') 
-    except Exception as e:
-        st.error(f"Error: {e}")
-        return None
+    try: return YOLO('best (5).pt') 
+    except: return None
 
 model = load_model()
 class_names = ['Neg', 'Trace', 'plus1', 'plus2', 'plus3', 'plus4']
-class_info = {
-    'Neg': {'name': 'NEGATIVE (ปกติ)', 'badge': 'neg-badge', 'desc': 'ไม่พบน้ำตาลในปัสสาวะ'},
-    'Trace': {'name': 'TRACE (พบเล็กน้อย)', 'badge': 'trace-badge', 'desc': 'พบน้ำตาลปริมาณน้อยมาก'},
-    'plus1': {'name': '+1 (ระดับเริ่มต้น)', 'badge': 'plus-badge', 'desc': 'พบน้ำตาล ~100 mg/dL'},
-    'plus2': {'name': '+2 (ระดับปานกลาง)', 'badge': 'plus-badge', 'desc': 'พบน้ำตาล ~250 mg/dL'},
-    'plus3': {'name': '+3 (ระดับสูง)', 'badge': 'plus-badge', 'desc': 'พบน้ำตาล ~500 mg/dL'},
-    'plus4': {'name': '+4 (ระดับสูงมาก)', 'badge': 'plus-badge', 'desc': 'พบน้ำตาล >1000 mg/dL'}
-}
 
-# --- 5. Upload & Analysis ---
-st.markdown("<div class='upload-instruction'><b>Instruction:</b> อัปโหลดรูปแผ่นตรวจที่เห็นแถบสีชัดเจน</div>", unsafe_allow_html=True)
-uploaded_file = st.file_uploader("เลือกไฟล์รูปภาพ...", type=["jpg", "jpeg", "png"])
+# --- 5. Main Layout (แบ่ง 3 คอลัมน์เพื่อให้จบในหน้าเดียว) ---
+col_input, col_preview, col_result = st.columns([1.5, 1.2, 1.8])
 
-if uploaded_file is not None:
+with col_input:
+    st.markdown("**1. Upload Image**")
+    uploaded_file = st.file_uploader("", type=["jpg", "png"], label_visibility="collapsed")
+    if uploaded_file:
+        st.success("File uploaded!")
+        analyze_btn = st.button('✨ ANALYZE NOW')
+    else:
+        analyze_btn = False
+
+if uploaded_file:
     image = Image.open(uploaded_file)
     
-    # แบ่ง Column: ซ้ายโชว์รูป (ขนาดพอดี), ขวามีปุ่ม Analyze
-    col_left, col_right = st.columns([1.2, 1])
-    
-    with col_left:
-        # ใช้ use_container_width=True เพื่อให้รูปขยายเต็มคอลัมน์ซ้าย แต่ไม่ใหญ่จนเกินหน้าจอ
-        st.image(image, caption='Uploaded Strip', use_container_width=True)
-    
-    with col_right:
-        st.write("## ") # เว้นระยะ
-        analyze_btn = st.button('✨ ANALYZE NOW')
-        if not analyze_btn:
-            st.info("ตรวจสอบรูปภาพทางซ้าย แล้วกดปุ่มเพื่อเริ่มวิเคราะห์")
+    with col_preview:
+        st.markdown("**2. Preview**")
+        # จำกัดความสูงของรูป (Height) เพื่อไม่ให้ล้นจอ แต่ยังเห็นทั้งแถบ
+        st.image(image, use_container_width=True)
 
-    if analyze_btn:
-        if model is not None:
-            with st.spinner('AI is analyzing...'):
+    with col_result:
+        st.markdown("**3. Result**")
+        if analyze_btn and model:
+            with st.spinner('Thinking...'):
                 results = model(image)
                 if len(results[0].boxes) > 0:
-                    top_box = results[0].boxes[0]
-                    cls_id = int(top_box.cls[0])
-                    conf = float(top_box.conf[0])
-                    info = class_info[class_names[cls_id]]
+                    box = results[0].boxes[0]
+                    label = class_names[int(box.cls[0])]
+                    conf = float(box.conf[0])
                     
-                    st.markdown("---")
-                    st.image(results[0].plot(), caption='AI Detection Result', use_container_width=True)
+                    # กำหนดสี Badge
+                    b_class = "neg" if label == 'Neg' else "trace" if label == 'Trace' else "plus"
                     
+                    # แสดงรูปที่ตรวจจับแล้ว (ขนาดเล็ก)
+                    st.image(results[0].plot(), use_container_width=True)
+                    
+                    # แสดงการวิเคราะห์แบบกระชับ
                     st.markdown(f"""
-                        <div class="premium-card">
-                            <div class="status-badge {info['badge']}">{info['name']}</div>
-                            <p style="color: #64748B;">AI Confidence: <b>{conf:.1%}</b></p>
-                            <p><b>คำแนะนำ:</b> {info['desc']}</p>
+                        <div class="result-card">
+                            <div class="badge {b_class}">{label.upper()}</div>
+                            <p style="margin: 5px 0; font-size: 14px; color: #64748B;">Confidence: {conf:.1%}</p>
                         </div>
                     """, unsafe_allow_html=True)
                 else:
-                    st.warning("⚠️ ไม่พบแถบตรวจปัสสาวะในรูปภาพ")
+                    st.error("No strip detected.")
+        else:
+            st.info("Waiting for analysis...")
 
-st.markdown("<br><div style='text-align: center; color: #CBD5E1; font-size: 11px;'>This tool is for preliminary screening only.</div>", unsafe_allow_html=True)
+st.markdown("---")
+st.caption("Disclaimer: For preliminary screening only.")
