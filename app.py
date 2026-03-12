@@ -1,19 +1,19 @@
 import streamlit as st
 from ultralytics import YOLO
 from PIL import Image
+import os
 
 # --- 1. ตั้งค่าหน้าจอแบบ Wide ---
 st.set_page_config(page_title="Smart Urine Analyzer", page_icon="🧬", layout="wide")
 
-# --- 2. CSS สำหรับซ่อนส่วนเกินและตกแต่งการ์ด ---
+# --- 2. CSS สำหรับตกแต่งแอปให้สวยงาม (ซ่อนส่วนเกิน จัดการ์ดผลลัพธ์) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600;700&display=swap');
     html, body, [class*="css"] { font-family: 'Prompt', sans-serif; }
     #MainMenu, footer, header {visibility: hidden;}
-    .block-container { padding-top: 1rem; padding-bottom: 0rem; }
+    .block-container { padding-top: 2rem; padding-bottom: 0rem; }
 
-    /* ตกแต่งการ์ดผลลัพธ์ให้อ่านง่ายและสวยงาม */
     .info-card {
         background: #ffffff;
         border-radius: 12px;
@@ -32,7 +32,7 @@ st.markdown("""
         margin-bottom: 15px;
         color: white;
     }
-    /* สีของแต่ละระดับ */
+    
     .bg-neg { background-color: #10B981; } /* เขียว */
     .bg-trace { background-color: #F59E0B; } /* เหลือง/ส้ม */
     .bg-plus { background-color: #EF4444; } /* แดง */
@@ -42,20 +42,12 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. Header ---
+# --- 3. ส่วนหัว (Header) ---
 st.markdown("### 🧬 Smart Urine Analyzer <span style='font-size:16px; color:gray; font-weight:normal;'>| ระบบคัดกรองเบาหวานอัจฉริยะ</span>", unsafe_allow_html=True)
 st.markdown("---")
 
-# --- 4. โหลดโมเดล และ ฐานข้อมูลคำแนะนำ ---
-@st.cache_resource
-def load_model():
-    try: return YOLO('best (5).pt') 
-    except Exception as e: return str(e)
-
-model = load_model()
+# --- 4. ฐานข้อมูลคำแนะนำ (อ้างอิงตามระดับน้ำตาล) ---
 class_names = ['Neg', 'Trace', 'plus1', 'plus2', 'plus3', 'plus4']
-
-# ข้อมูลผลลัพธ์ ระดับอาการ และคำแนะนำ
 class_info = {
     'Neg': {
         'title': 'NEGATIVE (ปกติ)', 'color': 'bg-neg',
@@ -89,50 +81,69 @@ class_info = {
     }
 }
 
-# --- 5. Layout หลัก (แบ่งอัปโหลดไว้ด้านบน) ---
+# --- 5. โหลดโมเดล AI ---
+# เช็คชื่อไฟล์ตรงนี้! ถ้าไฟล์คุณชื่ออื่น ให้แก้ตรง 'best (5).pt'
+model_path = 'best (5).pt' 
+
+@st.cache_resource
+def load_model(path):
+    if not os.path.exists(path):
+        return f"ไม่พบไฟล์โมเดล '{path}' ในโฟลเดอร์"
+    try: 
+        return YOLO(path) 
+    except Exception as e: 
+        return f"โหลดโมเดลผิดพลาด: {e}"
+
+model = load_model(model_path)
+
+# --- 6. ส่วนอัปโหลดและแสดงผล ---
 if isinstance(model, str):
-    st.error(f"❌ โหลดโมเดลไม่ได้: ไม่พบไฟล์ 'best (5).pt'")
-    uploaded_file = None
+    # ถ้าโหลดโมเดลไม่ผ่าน จะโชว์ Error สีแดง
+    st.error(f"❌ {model}")
+    st.info("💡 วิธีแก้: กรุณาตรวจสอบว่ามีไฟล์ชื่อ 'best (5).pt' วางอยู่ในโฟลเดอร์เดียวกันกับไฟล์โค้ดนี้หรือไม่ (ถ้าชื่อไฟล์ต่างกัน ให้แก้ชื่อในบรรทัดที่ 67)")
 else:
-    uploaded_file = st.file_uploader("📸 อัปโหลดรูปแผ่นตรวจปัสสาวะของคุณที่นี่ (คลิกหรือลากไฟล์มาวาง)", type=["jpg", "jpeg", "png"])
+    # อัปโหลดรูปภาพ
+    uploaded_file = st.file_uploader("📸 อัปโหลดรูปแผ่นตรวจปัสสาวะของคุณที่นี่ (รอสักครู่ระบบจะวิเคราะห์อัตโนมัติ)", type=["jpg", "jpeg", "png"])
+    st.markdown("<br>", unsafe_allow_html=True)
 
-st.markdown("<br>", unsafe_allow_html=True)
-
-# --- 6. ส่วนแสดงผล (ซ้าย: รูป / ขวา: คำแนะนำ) ---
-if uploaded_file is not None:
-    image = Image.open(uploaded_file)
-    
-    with st.spinner('🤖 AI กำลังวิเคราะห์ผลลัพธ์...'):
-        results = model(image)
+    # เมื่อมีการอัปโหลดรูป
+    if uploaded_file is not None:
+        image = Image.open(uploaded_file)
         
-        if len(results[0].boxes) > 0:
-            box = results[0].boxes[0]
-            cls_name = class_names[int(box.cls[0])]
-            conf = float(box.conf[0])
-            info = class_info[cls_name]
+        with st.spinner('🤖 AI กำลังวิเคราะห์ผลลัพธ์...'):
+            results = model(image)
             
-            # แบ่ง 2 คอลัมน์ (ซ้ายเล็ก ขวาใหญ่)
-            col_img, col_text = st.columns([1, 2.5])
-            
-            with col_img:
-                # โชว์รูปที่วิเคราะห์แล้ว (ล็อกความกว้างให้พอดี ไม่ใหญ่เกินไป)
-                st.image(results[0].plot(), width=200)
+            if len(results[0].boxes) > 0:
+                box = results[0].boxes[0]
+                cls_name = class_names[int(box.cls[0])]
+                conf = float(box.conf[0])
+                info = class_info[cls_name]
                 
-            with col_text:
-                # กล่องข้อความแสดงผลแบบละเอียด
-                st.markdown(f"""
-                    <div class="info-card" style="border-left-color: {'#10B981' if cls_name=='Neg' else '#F59E0B' if cls_name=='Trace' else '#EF4444'};">
-                        <div class="badge {info['color']}">{info['title']}</div>
-                        
-                        <div class="section-title">📊 ความแม่นยำของ AI (Confidence)</div>
-                        <div class="section-detail">{conf:.1%}</div>
-                        
-                        <div class="section-title">🩺 ระดับอาการ</div>
-                        <div class="section-detail">{info['level']}</div>
-                        
-                        <div class="section-title">💡 สิ่งที่ควรทำ (คำแนะนำ)</div>
-                        <div class="section-detail">{info['action']}</div>
-                    </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.error("⚠️ AI หาแถบตรวจไม่เจอ กรุณาถ่ายรูปให้เห็นแถบสีชัดเจนขึ้นครับ")
+                # กำหนดสีขอบซ้ายของการ์ดตามระดับความรุนแรง
+                border_color = '#10B981' if cls_name == 'Neg' else '#F59E0B' if cls_name == 'Trace' else '#EF4444'
+                
+                # แบ่งหน้าจอเป็น 2 ฝั่ง (ซ้าย: รูป / ขวา: ผลลัพธ์)
+                col_img, col_text = st.columns([1, 2.5])
+                
+                with col_img:
+                    # แสดงรูปที่ AI วิเคราะห์แล้ว พร้อมล็อกขนาดความกว้างที่ 250px เพื่อไม่ให้ใหญ่ล้นจอ
+                    st.image(results[0].plot(), width=250)
+                    
+                with col_text:
+                    # แสดงกล่องข้อความผลลัพธ์
+                    st.markdown(f"""
+                        <div class="info-card" style="border-left-color: {border_color};">
+                            <div class="badge {info['color']}">{info['title']}</div>
+                            
+                            <div class="section-title">📊 ความแม่นยำของ AI (Confidence)</div>
+                            <div class="section-detail">{conf:.1%}</div>
+                            
+                            <div class="section-title">🩺 ระดับอาการ</div>
+                            <div class="section-detail">{info['level']}</div>
+                            
+                            <div class="section-title">💡 สิ่งที่ควรทำ (คำแนะนำ)</div>
+                            <div class="section-detail">{info['action']}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.error("⚠️ AI หาแถบตรวจไม่เจอ กรุณาถ่ายรูปให้เห็นแถบสีชัดเจนขึ้น หรือครอบรูปให้พอดีแถบตรวจครับ")
