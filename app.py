@@ -62,7 +62,7 @@ st.markdown("""
         margin-bottom: 12px;
     }
 
-    /* สีตามระดับอาการ (ดูหรูหราขึ้น ไม่จ้าเกินไป) */
+    /* สีตามระดับอาการ */
     .neg-badge { background: #ECFDF5; color: #059669; border: 1px solid #10B981;}
     .trace-badge { background: #FFFBEB; color: #D97706; border: 1px solid #F59E0B;}
     .plus-badge { background: #FEF2F2; color: #DC2626; border: 1px solid #EF4444;}
@@ -80,10 +80,9 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. ส่วนหัว (Header) สไตล์แอป พร้อมโลโก้ ---
+# --- 3. ส่วนหัว (Header) ---
 col1, col2 = st.columns([1, 4])
 with col1:
-    # โหลดโลโก้ (ถ้าหาไฟล์ไม่เจอ จะใช้ Emoji รูป DNA แทน)
     try:
         logo_img = Image.open("logo_diagnostic.png") 
         st.image(logo_img, use_container_width=True)
@@ -100,7 +99,8 @@ st.markdown("---")
 @st.cache_resource
 def load_model():
     try:
-        return YOLO('best (4).pt') 
+        # อัปเดตเป็นชื่อไฟล์ล่าสุดของคุณ
+        return YOLO('best (5).pt') 
     except Exception as e:
         st.error(f"System Error: Unable to load AI model. ({e})")
         return None
@@ -134,6 +134,7 @@ if uploaded_file is not None:
                 results = model(image)
                 
                 if len(results[0].boxes) > 0:
+                    # ดึงกล่องที่ AI มั่นใจที่สุดมาแสดง
                     top_box = results[0].boxes[0]
                     cls_id = int(top_box.cls[0])
                     conf = float(top_box.conf[0])
@@ -141,6 +142,7 @@ if uploaded_file is not None:
                     label = class_names[cls_id]
                     info = class_info[label]
                     
+                    # แสดงรูปที่ AI ตีรอบไว้
                     st.image(results[0].plot(), use_container_width=True)
                     
                     # UI ผลลัพธ์แบบ Premium Card
@@ -161,7 +163,7 @@ if uploaded_file is not None:
                     """
                     st.markdown(res_html, unsafe_allow_html=True)
                 else:
-                    st.warning("⚠️ No glucose pad detected. Please check the image and try again.")
+                    st.warning("⚠️ ไม่พบแถบตรวจปัสสาวะในรูปภาพ กรุณาลองใหม่อีกครั้ง")
         else:
             st.error("System Error: Model not found.")
 
